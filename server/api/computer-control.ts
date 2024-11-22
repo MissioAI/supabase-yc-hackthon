@@ -17,6 +17,8 @@ async function initBrowser() {
       width: 1280,
       height: 800
     })
+    // Navigate to Google by default
+    await page.goto('https://www.google.com', { waitUntil: 'networkidle0' })
   }
   return { browser, page }
 }
@@ -38,14 +40,10 @@ export default defineEventHandler(async (event) => {
 
     switch (action) {
       case 'screenshot':
-        if (!url) {
-          throw createError({
-            statusCode: 400,
-            message: 'URL is required for screenshots'
-          })
+        // Only navigate if URL is provided
+        if (url) {
+          await page.goto(url, { waitUntil: 'networkidle0' })
         }
-        // Navigate and take screenshot
-        await page.goto(url, { waitUntil: 'networkidle0' })
         const screenshot = await page.screenshot({ 
           type: 'png', 
           fullPage: true,
