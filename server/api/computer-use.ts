@@ -74,6 +74,65 @@ export default defineLazyEventHandler(async () => {
           });
           return `typed text: ${text}`;
         }
+        case 'key':
+          if (!text) {
+            throw new Error('Key sequence required for key action')
+          }
+          await $fetch('/api/computer-control', {
+            method: 'POST',
+            body: {
+              action: 'key',
+              text
+            }
+          })
+          return `pressed key: ${text}`
+
+        case 'cursor_position':
+          return `cursor position: (${lastMousePosition.x}, ${lastMousePosition.y})`
+
+        case 'left_click_drag':
+          if (!coordinate) {
+            throw new Error('Coordinates required for drag action')
+          }
+          await $fetch('/api/computer-control', {
+            method: 'POST',
+            body: {
+              action: 'left_click_drag',
+              coordinates: { x: coordinate[0], y: coordinate[1] }
+            }
+          })
+          return `dragged to (${coordinate[0]}, ${coordinate[1]})`
+
+        case 'right_click':
+          await $fetch('/api/computer-control', {
+            method: 'POST',
+            body: {
+              action: 'right_click',
+              coordinates: lastMousePosition
+            }
+          })
+          return `right clicked at (${lastMousePosition.x}, ${lastMousePosition.y})`
+
+        case 'middle_click':
+          await $fetch('/api/computer-control', {
+            method: 'POST',
+            body: {
+              action: 'middle_click',
+              coordinates: lastMousePosition
+            }
+          })
+          return `middle clicked at (${lastMousePosition.x}, ${lastMousePosition.y})`
+
+        case 'double_click':
+          await $fetch('/api/computer-control', {
+            method: 'POST',
+            body: {
+              action: 'double_click',
+              coordinates: lastMousePosition
+            }
+          })
+          return `double clicked at (${lastMousePosition.x}, ${lastMousePosition.y})`
+
         default: {
           throw new Error(`Unsupported action: ${action}`);
         }
