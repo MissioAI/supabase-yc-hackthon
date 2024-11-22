@@ -3,6 +3,7 @@ export default defineNitroConfig({
   srcDir: "server",
   compatibilityDate: '2024-11-22',
   runtimeConfig: {
-    openaiApiKey: process.env.OPENAI_API_KEY
+    openaiApiKey: process.env.OPENAI_API_KEY,
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY
   }
 });

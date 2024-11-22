@@ -1,6 +1,7 @@
 import { generateText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 
+
 export default defineLazyEventHandler(async () => {
   const config = useRuntimeConfig();
   if (!config.openaiApiKey) throw new Error('Missing OpenAI API key');
