@@ -1,5 +1,6 @@
 import puppeteer, { Browser, Page } from 'puppeteer'
 import { installMouseHelper } from '../utils/mouseHelper'
+import sharp from 'sharp'
 
 // Store browser and page instances
 let browser: Browser | null = null
@@ -48,7 +49,15 @@ const KEY_MAPPING: Record<string, string> = {
 export default defineEventHandler(async (event) => {
   // Get action parameters from request body
   const body = await readBody(event)
-  const { action, url, coordinates, text } = body
+  const { action, url, coordinates: rawCoordinates, text } = body
+  
+  const scaleFactor = 0.5 // Adjust this value to control reduction (0.25 = 25% of original size)
+  
+  // Scale up coordinates if they exist
+  const coordinates = rawCoordinates ? {
+    x: Math.round(rawCoordinates.x / scaleFactor),
+    y: Math.round(rawCoordinates.y / scaleFactor)
+  } : undefined
 
   if (!action) {
     throw createError({
@@ -66,14 +75,39 @@ export default defineEventHandler(async (event) => {
         if (url) {
           await page.goto(url, { waitUntil: 'networkidle0' })
         }
-        const screenshot = await page.screenshot({ 
-          type: 'png', 
+        
+        // Take the original screenshot as a Buffer
+        const originalScreenshot = await page.screenshot({ 
+          type: 'png',
           fullPage: false,
-          encoding: 'base64'
+          encoding: null  // Returns a Buffer instead of base64
         })
+        
+        // Get metadata to determine dimensions
+        const metadata = await sharp(originalScreenshot).metadata()
+        const newWidth = Math.round((metadata.width || 0) * scaleFactor)
+        const newHeight = Math.round((metadata.height || 0) * scaleFactor)
+        
+        // Resize with Sharp while maintaining aspect ratio
+        const resizedImageBuffer = await sharp(originalScreenshot)
+          .resize(newWidth, newHeight, {
+            withoutEnlargement: true
+          })
+          .toBuffer()
+        
         return {
           type: 'image',
-          data: screenshot
+          data: resizedImageBuffer.toString('base64'),
+          dimensions: {  // Add original dimensions to help with coordinate mapping
+            original: {
+              width: metadata.width,
+              height: metadata.height
+            },
+            scaled: {
+              width: newWidth,
+              height: newHeight
+            }
+          }
         }
 
       case 'click':

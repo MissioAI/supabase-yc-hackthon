@@ -1,12 +1,12 @@
-import { Laminar, observe } from '@lmnr-ai/lmnr';
+import { Laminar } from '@lmnr-ai/lmnr';
 import { generateText } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 
 // Store last known mouse position
-let lastMousePosition = { x: 0, y: 0 };
 
+let lastMousePosition = { x: 0, y: 0 };
 const config = useRuntimeConfig();
 
 // Initialize Laminar client
@@ -26,10 +26,12 @@ export default defineLazyEventHandler(async () => {
     apiKey: config.anthropicApiKey,
   });
 
+  const scaleFactor = 0.5 // Adjust this value to control reduction (0.5 = 50% of original size)
+
   // Create computer tool
   const computerTool = anthropic.tools.computer_20241022({
-    displayWidthPx: 1280,
-    displayHeightPx: 800,
+    displayWidthPx: Math.round(1280 / scaleFactor),
+    displayHeightPx: Math.round(800 / scaleFactor),
     execute: async ({ action, coordinate, text }) => {
       switch (action) {
         case 'screenshot': {
