@@ -6,6 +6,6 @@ export default defineNitroConfig({
     openaiApiKey: process.env.OPENAI_API_KEY,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     supabaseUrl: process.env.SUPABASE_URL,
-    supabaseKey: process.env.SUPABASE_KEY,
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
   }
 });

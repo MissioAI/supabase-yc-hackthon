@@ -10,10 +10,10 @@ export default defineLazyEventHandler(async () => {
   const config = useRuntimeConfig();
   if (!config.anthropicApiKey) throw new Error('Missing Anthropic API key');
   if (!config.supabaseUrl) throw new Error('Missing Supabase URL');
-  if (!config.supabaseKey) throw new Error('Missing Supabase key');
+  if (!config.supabaseAnonKey) throw new Error('Missing Supabase key');
 
   // Initialize Supabase client
-  const supabase = createClient(config.supabaseUrl, config.supabaseKey);
+  const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
   const anthropic = createAnthropic({
     apiKey: config.anthropicApiKey,
