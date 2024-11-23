@@ -198,6 +198,7 @@ export default defineLazyEventHandler(async () => {
     // Generate response with step tracking
     const response = await generateText({
       model: anthropic('claude-3-5-sonnet-20241022'),
+      system: `You are a helpful assistant that can control a computer. When using tools, explain your reasoning and thought process before each tool call. Break down complex tasks into clear steps and explain what you're trying to achieve with each action. After each tool result, analyze the outcome and explain how it affects your next steps.`,
       messages,
       tools: { computer: computerTool },
       maxSteps: 10,
@@ -205,46 +206,28 @@ export default defineLazyEventHandler(async () => {
         try {
           console.log('\n🤖 ===== AI STEP DETAILS ===== 🤖');
           console.log(`📍 Step Type: ${step.stepType}`);
-          console.log(`🔢 Step Number: ${step.stepNumber}`);
           
+          const { error: messageError } = await supabase.from('messages').insert({
+            id: randomUUID(),
+            chat_id: actualChatId,
+            role: step.toolResults?.length ? 'tool' : 'assistant',
+            content: step.text ?? null,
+            tool_invocations: (!step.toolResults?.length ? null : step.toolResults) ?? step.toolCalls ?? null
+          });
+          
+          if (messageError) {
+            console.error('❌ Failed to save message:', messageError);
+          }
+
+          // Log details
           if (step.text) {
             console.log('💬 Assistant Message:', step.text);
           }
-          
           if (step.toolCalls?.length) {
             console.log('🛠️  Tool Calls:', JSON.stringify(step.toolCalls, null, 2));
           }
-
-          // Save assistant message for this step
-          if (step.stepType === 'initial' || step.stepType === 'continue') {
-            const { error: assistantError } = await supabase.from('messages').insert({
-              id: randomUUID(),
-              chat_id: actualChatId,
-              role: 'assistant',
-              content: step.text,
-              tool_invocations: step.toolCalls?.length ? step.toolCalls : null
-            });
-            
-            if (assistantError) {
-              console.error('❌ Failed to save assistant message:', assistantError);
-            }
-          }
-
-          // Save tool results if any
           if (step.toolResults?.length) {
             console.log('🎯 Tool Results:', JSON.stringify(step.toolResults, null, 2));
-            
-            const { error: toolError } = await supabase.from('messages').insert({
-              id: randomUUID(),
-              chat_id: actualChatId,
-              role: 'tool',
-              tool_invocations: step.toolResults,
-              content: null
-            });
-
-            if (toolError) {
-              console.error('❌ Failed to save tool results:', toolError);
-            }
           }
         } catch (error) {
           console.error('⚠️  Error in onStepFinish:', error);
@@ -256,24 +239,24 @@ export default defineLazyEventHandler(async () => {
       }
     });
 
-    console.log('\n✨ ===== FINAL RESPONSE ===== ✨');
-    console.log('📝 Response Text:', response.text);
-    if (response.toolResults?.length) {
-      console.log('🎯 Final Tool Results:', JSON.stringify(response.toolResults, null, 2));
-    }
+    // console.log('\n✨ ===== FINAL RESPONSE ===== ✨');
+    // console.log('📝 Response Text:', response.text);
+    // if (response.toolResults?.length) {
+    //   console.log('🎯 Final Tool Results:', JSON.stringify(response.toolResults, null, 2));
+    // }
 
-    // Save the final response based on its type
-    const { error: finalResponseError } = await supabase.from('messages').insert({
-      id: randomUUID(),
-      chat_id: actualChatId,
-      role: response.toolResults?.length ? 'tool' : 'assistant',
-      content: response.toolResults?.length ? null : response.text,
-      tool_invocations: response.toolResults?.length ? response.toolResults : null
-    });
+    // // Save the final response based on its type
+    // const { error: finalResponseError } = await supabase.from('messages').insert({
+    //   id: randomUUID(),
+    //   chat_id: actualChatId,
+    //   role: response.toolResults?.length ? 'tool' : 'assistant',
+    //   content: response.text,
+    //   tool_invocations: response.toolResults?.length ? response.toolResults : null
+    // });
 
-    if (finalResponseError) {
-      console.error('Failed to save final response:', finalResponseError);
-    }
+    // if (finalResponseError) {
+    //   console.error('Failed to save final response:', finalResponseError);
+    // }
 
     return { 
       response: response.text,
