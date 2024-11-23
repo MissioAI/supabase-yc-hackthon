@@ -42,7 +42,7 @@ type TaskParams = {
 };
 
 // Replace 'YOUR_API_KEY_HERE' with your actual OpenAI API key, but keep it secure
-const client = new RealtimeClient({ apiKey: process.env.OPENAI_API_KEY });
+const client = new RealtimeClient({ apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY });
 
 export default function ChatScreen() {
     const { user } = useAuth();
@@ -116,12 +116,48 @@ export default function ChatScreen() {
                                         user_id: user.id,
                                         title: params.title.trim(),
                                         description: params.description?.trim() || '',
-                                        priority: params.priority || 'medium',
-                                        status: 'pending',
-                                        due_date: params.due_date || new Date().toISOString(),
+                                        // priority: params.priority || 'medium',
+                                        // status: 'pending',
+                                        // due_date: params.due_date || new Date().toISOString(),
                                     }]);
 
                                 if (error) throw error;
+
+                                // Call the computer-use endpoint after successful task creation
+                                try {
+                                   const response = await fetch('http://172.20.10.2:3000/api/computer-use', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                            messages: [
+                                                {
+                                                    role: 'user',
+                                                    content: params.title // Using the task title as the prompt
+                                                }
+                                            ]
+                                        })
+                                    });
+
+                                    const data = await response.json();
+
+
+                                    if (data) {
+                                        // Send the computer-use response to the assistant
+                                        client.sendUserMessageContent([{
+                                            type: 'input_text',
+                                            text: `Computer Analysis: ${data}`
+                                        }] as InputTextContentType[]);
+                                        console.log('🟢 Sent computer-use response to assistant', data);
+                                        await client.createResponse();
+                                    }
+
+                                } catch (endpointError) {
+                                    console.error('Error calling computer-use endpoint:', endpointError);
+                                    // Continue with task creation success even if endpoint fails
+                                }
+
                                 return { success: true, message: `Task "${params.title}" created successfully` };
                             } catch (error) {
                                 console.error('Error creating task:', error);
@@ -136,7 +172,7 @@ export default function ChatScreen() {
 
                 // Update session with instructions
                 client.updateSession({
-                    instructions: `You are a helpful assistant that can create tasks in the user's task list. When a user asks to create a task, remember or schedule something, use the create_task tool to help them.`,
+                    instructions: `You are a helpful assistant who's sole purpose in life is to can create tasks in the user's task list. When a user asks to create a task, remember or schedule something, always use the create_task tool to help them.`,
                     modalities: ['text', 'audio'],
                     voice: 'ash',
                     output_audio_format: 'pcm16',
@@ -190,7 +226,7 @@ export default function ChatScreen() {
                     if (delta?.audio) {
                         // Decode base64-encoded audio chunk into binary data
                         const audioChunkData = Buffer.from(delta.audio, 'base64');
-                        console.log('Received audio chunk of length:', audioChunkData.length);
+                        // console.log('Received audio chunk of length:', audioChunkData.length);
                         setAssistantAudioChunks((prevChunks) => [...prevChunks, audioChunkData]);
                     }
 
