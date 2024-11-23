@@ -30,6 +30,7 @@ export default defineEventHandler(async (event: H3Event) => {
         statusCode: 400,
         message: 'Text parameter is required'
       });
+      
     }
 
     await initializeModel();
