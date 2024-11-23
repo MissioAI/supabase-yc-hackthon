@@ -54,15 +54,28 @@ export default defineLazyEventHandler(async () => {
           if (!coordinate) {
             throw new Error('Coordinates required for mouse move');
           }
-          // Store coordinates before moving
+          
+          const startPos = { ...lastMousePosition };
+          const targetPos = { x: coordinate[0], y: coordinate[1] };
+          
+          // Move in small steps
+          const steps = 20; // Adjust for speed
+          for (let i = 0; i <= steps; i++) {
+            const progress = i / steps;
+            const currentX = startPos.x + (targetPos.x - startPos.x) * progress;
+            const currentY = startPos.y + (targetPos.y - startPos.y) * progress;
+            
+            await $fetch('/api/computer-control', {
+              method: 'POST',
+              body: {
+                action: 'move',
+                coordinates: { x: currentX, y: currentY }
+              }
+            });
+            await new Promise(resolve => setTimeout(resolve, 10)); // Small delay between steps
+          }
+          
           lastMousePosition = { x: coordinate[0], y: coordinate[1] };
-          await $fetch('/api/computer-control', {
-            method: 'POST',
-            body: {
-              action: 'move',
-              coordinates: lastMousePosition
-            }
-          });
           return `moved cursor to (${coordinate[0]}, ${coordinate[1]})`;
         }
         case 'left_click': {
@@ -193,15 +206,26 @@ export default defineLazyEventHandler(async () => {
       });
 
       // Generate response with step tracking
-      const responsePromise = generateText({
+      const response = await generateText({
         model: anthropic('claude-3-5-sonnet-20241022'),
         experimental_telemetry: {isEnabled: true},
         system: 'The browser is your tool; it will always be open when you initialize at the Google homepage (Firefox is already running). Deliberate on your agentic flow using principles from stit theory, but within your policy bounds. Immediately describe all actions necessary to complete the the task end-to-end.',
         messages,
         tools: { computer: computerTool },
-        maxSteps: 100,
+        maxSteps: 40,
         onStepFinish: async (step) => {
           try {
+            console.log('\n🤖 ===== AI STEP DETAILS ===== 🤖');
+            console.log(`📍 Step Type: ${step.stepType}`);
+            
+            if (step.text) {
+              console.log('💬 Assistant Message:', step.text);
+            }
+            
+            if (step.toolCalls?.length) {
+              console.log('🛠️  Tool Calls:', JSON.stringify(step.toolCalls, null, 2));
+            }
+
             // Save assistant message for this step
             if (step.stepType === 'initial' || step.stepType === 'continue') {
               const { error: assistantError } = await supabase.from('messages').insert({
@@ -213,12 +237,14 @@ export default defineLazyEventHandler(async () => {
               });
               
               if (assistantError) {
-                console.error('Failed to save assistant message:', assistantError);
+                console.error('❌ Failed to save assistant message:', assistantError);
               }
             }
 
             // Save tool results if any
             if (step.toolResults?.length) {
+              console.log('🎯 Tool Results:', JSON.stringify(step.toolResults, null, 2));
+              
               const { error: toolError } = await supabase.from('messages').insert({
                 id: randomUUID(),
                 chat_id: actualChatId,
@@ -228,16 +254,24 @@ export default defineLazyEventHandler(async () => {
               });
 
               if (toolError) {
-                console.error('Failed to save tool results:', toolError);
+                console.error('❌ Failed to save tool results:', toolError);
               }
             }
           } catch (error) {
-            console.error('Error in onStepFinish:', error);
+            console.error('⚠️  Error in onStepFinish:', error);
+            console.error('🔍 Error details:', {
+              message: error.message,
+              stack: error.stack
+            });
           }
         }
       });
 
-      const response = await responsePromise;
+      console.log('\n✨ ===== FINAL RESPONSE ===== ✨');
+      console.log('📝 Response Text:', response.text);
+      if (response.toolResults?.length) {
+        console.log('🎯 Final Tool Results:', JSON.stringify(response.toolResults, null, 2));
+      }
 
       // Save the final response based on its type
       const { error: finalResponseError } = await supabase.from('messages').insert({
@@ -250,19 +284,6 @@ export default defineLazyEventHandler(async () => {
 
       if (finalResponseError) {
         console.error('Failed to save final response:', finalResponseError);
-      }
-
-      // Wrap shutdown in try-catch and add timeout
-      try {
-        await Promise.race([
-          Laminar.shutdown(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Shutdown timeout')), 5000)
-          )
-        ]);
-      } catch (shutdownError) {
-        console.warn('Laminar shutdown error:', shutdownError);
-        // Continue execution even if shutdown fails
       }
 
       return { 
