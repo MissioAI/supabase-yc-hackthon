@@ -58,6 +58,13 @@ export default defineLazyEventHandler(async () => {
         displayWidthPx: Math.round(1280 / scaleFactor),
         displayHeightPx: Math.round(800 / scaleFactor),
         execute: async ({ action, coordinate, text }) => {
+          // Common overlay message data
+          const overlayMessage = {
+            stepType: 'tool-execution',
+            message: '',
+            coordinates: coordinate
+          }
+
           switch (action) {
             case 'screenshot': {
               const response = await $fetch('/api/computer-control', {
@@ -78,57 +85,64 @@ export default defineLazyEventHandler(async () => {
             }
             case 'mouse_move': {
               if (!coordinate) {
-                throw new Error('Coordinates required for mouse move');
+                throw new Error('Coordinates required for mouse move')
               }
 
-              const startPos = { ...lastMousePosition };
-              const targetPos = { x: coordinate[0], y: coordinate[1] };
+              overlayMessage.message = `Moving cursor to (${coordinate[0]}, ${coordinate[1]})`
+              
+              const startPos = { ...lastMousePosition }
+              const targetPos = { x: coordinate[0], y: coordinate[1] }
 
               // Move in small steps
-              const steps = 20; // Adjust for speed
+              const steps = 20
               for (let i = 0; i <= steps; i++) {
-                const progress = i / steps;
-                const currentX = startPos.x + (targetPos.x - startPos.x) * progress;
-                const currentY = startPos.y + (targetPos.y - startPos.y) * progress;
+                const progress = i / steps
+                const currentX = startPos.x + (targetPos.x - startPos.x) * progress
+                const currentY = startPos.y + (targetPos.y - startPos.y) * progress
 
                 await $fetch('/api/computer-control', {
                   method: 'POST',
                   body: {
                     action: 'move',
                     coordinates: { x: currentX, y: currentY },
-                    browserId: actualChatId
+                    browserId: actualChatId,
+                    overlayMessage
                   }
-                });
-                await new Promise(resolve => setTimeout(resolve, 10)); // Small delay between steps
+                })
+                await new Promise(resolve => setTimeout(resolve, 10))
               }
 
-              lastMousePosition = { x: coordinate[0], y: coordinate[1] };
-              return `moved cursor to (${coordinate[0]}, ${coordinate[1]})`;
+              lastMousePosition = { x: coordinate[0], y: coordinate[1] }
+              return `moved cursor to (${coordinate[0]}, ${coordinate[1]})`
             }
             case 'left_click': {
+              overlayMessage.message = `Clicking at (${lastMousePosition.x}, ${lastMousePosition.y})`
               await $fetch('/api/computer-control', {
                 method: 'POST',
                 body: {
                   action: 'click',
                   coordinates: lastMousePosition,
-                  browserId: actualChatId
+                  browserId: actualChatId,
+                  overlayMessage
                 }
-              });
-              return `clicked at coordinates (${lastMousePosition.x}, ${lastMousePosition.y})`;
+              })
+              return `clicked at coordinates (${lastMousePosition.x}, ${lastMousePosition.y})`
             }
             case 'type': {
               if (!text) {
-                throw new Error('Text required for type action');
+                throw new Error('Text required for type action')
               }
+              overlayMessage.message = `Typing: ${text}`
               await $fetch('/api/computer-control', {
                 method: 'POST',
                 body: {
                   action: 'type',
                   text,
-                  browserId: actualChatId
+                  browserId: actualChatId,
+                  overlayMessage
                 }
-              });
-              return `typed text: ${text}`;
+              })
+              return `typed text: ${text}`
             }
             case 'key':
               if (!text) {

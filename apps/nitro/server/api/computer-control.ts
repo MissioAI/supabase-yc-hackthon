@@ -68,7 +68,7 @@ const KEY_MAPPING: Record<string, string> = {
 export default defineEventHandler(async (event) => {
   // Get action parameters from request body
   const body = await readBody(event)
-  const { action, url, coordinates: rawCoordinates, text, browserId = 'default' } = body
+  const { action, url, coordinates: rawCoordinates, text, browserId = 'default', overlayMessage } = body
   
   const config = useRuntimeConfig()
   const scaleFactor = Number(config.displayScaleFactor) ?? 1 // Default to 1 if not set
@@ -89,18 +89,90 @@ export default defineEventHandler(async (event) => {
   try {
     const { page } = await initBrowser(browserId)
 
+    // Add overlay update if message is provided
+    if (overlayMessage) {
+      await page.evaluate((data) => {
+        const overlay = document.getElementById('step-overlay')
+        if (!overlay) return
+        
+        overlay.innerHTML = ''
+        
+        if (data.stepType) {
+          const stepType = document.createElement('div')
+          stepType.className = 'step-type'
+          stepType.textContent = `Step: ${data.stepType}`
+          overlay.appendChild(stepType)
+        }
+
+        if (data.message) {
+          const message = document.createElement('div')
+          message.className = 'message'
+          message.textContent = data.message
+          overlay.appendChild(message)
+        }
+
+        if (data.coordinates) {
+          const coords = document.createElement('div')
+          coords.className = 'coordinates'
+          coords.textContent = `Coordinates: [${data.coordinates.join(', ')}]`
+          overlay.appendChild(coords)
+        }
+
+        overlay.classList.add('active')
+      }, overlayMessage)
+    }
+
     switch (action) {
       case 'screenshot':
+        // Add overlay message for screenshot
+        await page.evaluate(() => {
+          const overlay = document.getElementById('step-overlay')
+          if (!overlay) return
+          
+          overlay.innerHTML = `
+            <div class="step-type">Step: Screenshot</div>
+            <div class="message">📸 Taking screenshot...</div>
+            <div class="screenshot-flash"></div>
+          `
+          overlay.classList.add('active')
+          
+          // Add flash animation
+          const style = document.createElement('style')
+          style.textContent = `
+            .screenshot-flash {
+              position: fixed;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              background: white;
+              opacity: 0;
+              pointer-events: none;
+              animation: flash 0.5s ease-out;
+            }
+            
+            @keyframes flash {
+              0% { opacity: 0; }
+              50% { opacity: 0.3; }
+              100% { opacity: 0; }
+            }
+          `
+          document.head.appendChild(style)
+        })
+
         // Only navigate if URL is provided
         if (url) {
           await page.goto(url, { waitUntil: 'networkidle0' })
         }
         
+        // Wait briefly for flash animation
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
         // Take the original screenshot as a Buffer
         const originalScreenshot = await page.screenshot({ 
           type: 'png',
           fullPage: false,
-          encoding: null  // Returns a Buffer instead of base64
+          encoding: null
         })
         
         // Get metadata to determine dimensions
