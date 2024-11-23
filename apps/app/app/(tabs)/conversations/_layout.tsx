@@ -17,6 +17,14 @@ export default function ChatsLayout() {
                     headerShown: false,
                 }}
             />
+            <Stack.Screen
+                name="[id]/chats/[chatId]"
+                options={{
+                    presentation: 'modal',
+                    animation: 'slide_from_right',
+                    headerShown: false,
+                }}
+            />
         </Stack>
     );
 }

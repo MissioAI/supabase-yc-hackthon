@@ -24,6 +24,8 @@ import {
 } from 'expo-av/build/Audio';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { IconSymbol } from '@/components/ui/IconSymbol';
+import { router } from 'expo-router';
 
 // Ensure Buffer is available globally
 global.Buffer = global.Buffer || Buffer;
@@ -194,7 +196,7 @@ export default function ChatScreen() {
 
                 // Handle transcription updates
                 client.on('conversation.item.created', ({ item }: { item: any }) => {
-                    console.log('��� Message Created:', {
+                    console.log(' Message Created:', {
                         role: item.role,
                         type: item.type,
                         text: item.formatted?.text,
@@ -652,6 +654,12 @@ export default function ChatScreen() {
         }
     };
 
+    const handleCreateSubChat = () => {
+        // Implement the logic to create a sub-cha
+        // Route to a hardcoded conversations/[subchat]/[id]
+        router.push(`/conversations/subchat/123`);
+    };
+
     return (
         <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'top']}>
             <KeyboardAvoidingView
@@ -726,6 +734,12 @@ export default function ChatScreen() {
                     </Pressable>
                 </ThemedView>
             </KeyboardAvoidingView>
+            <Pressable
+                style={styles.subChatButton}
+                onPress={handleCreateSubChat}
+            >
+                <IconSymbol name="plus.bubble.fill" size={24} color="#FFFFFF" />
+            </Pressable>
         </SafeAreaView>
     );
 }
@@ -832,5 +846,24 @@ const styles = StyleSheet.create({
         color: '#666',
         textAlign: 'center',
         fontSize: 16,
+    },
+    subChatButton: {
+        position: 'absolute',
+        top: 50,
+        right: 16,
+        backgroundColor: '#0a7ea4',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
     },
 });
