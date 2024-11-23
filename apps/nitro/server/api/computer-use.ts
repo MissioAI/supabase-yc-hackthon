@@ -1,13 +1,20 @@
+import { Laminar } from '@lmnr-ai/lmnr';
 import { generateText } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 
 // Store last known mouse position
+
 let lastMousePosition = { x: 0, y: 0 };
+const config = useRuntimeConfig();
+
+// Initialize Laminar client
+Laminar.initialize({
+  projectApiKey: config.laminarApiKey
+});
 
 export default defineLazyEventHandler(async () => {
-  const config = useRuntimeConfig();
   if (!config.anthropicApiKey) throw new Error('Missing Anthropic API key');
   if (!config.supabaseUrl) throw new Error('Missing Supabase URL');
   if (!config.supabaseKey) throw new Error('Missing Supabase key');
@@ -19,10 +26,12 @@ export default defineLazyEventHandler(async () => {
     apiKey: config.anthropicApiKey,
   });
 
+  const scaleFactor = 0.5 // Adjust this value to control reduction (0.5 = 50% of original size)
+
   // Create computer tool
   const computerTool = anthropic.tools.computer_20241022({
-    displayWidthPx: 1280,
-    displayHeightPx: 800,
+    displayWidthPx: Math.round(1280 / scaleFactor),
+    displayHeightPx: Math.round(800 / scaleFactor),
     execute: async ({ action, coordinate, text }) => {
       switch (action) {
         case 'screenshot': {
@@ -164,120 +173,131 @@ export default defineLazyEventHandler(async () => {
   });
 
   return defineEventHandler(async (event) => {
-    const { messages, chatId } = await readBody(event);
-    
-    // Create chat if chatId is not provided
-    let actualChatId = chatId;
-    if (!actualChatId) {
-      const { data: chat, error: chatError } = await supabase
-        .from('chats')
-        .insert({
-          id: randomUUID(),
-          name: 'Computer Control Session'
-        })
-        .select()
-        .single();
+    try {
+      const { messages, chatId } = await readBody(event);
+      
+      // Create chat if chatId is not provided
+      let actualChatId = chatId;
+      if (!actualChatId) {
+        const { data: chat, error: chatError } = await supabase
+          .from('chats')
+          .insert({
+            id: randomUUID(),
+            name: 'Computer Control Session'
+          })
+          .select()
+          .single();
 
-      if (chatError) throw createError({ 
-        statusCode: 500, 
-        message: 'Failed to create chat' 
+        if (chatError) throw createError({ 
+          statusCode: 500, 
+          message: 'Failed to create chat' 
+        });
+
+        actualChatId = chat.id;
+      }
+
+      // Save user message
+      const userMessageId = randomUUID();
+      await supabase.from('messages').insert({
+        id: userMessageId,
+        chat_id: actualChatId,
+        role: 'user',
+        content: JSON.stringify(messages[messages.length - 1].content)
       });
 
-      actualChatId = chat.id;
-    }
-
-    // Save user message
-    const userMessageId = randomUUID();
-    await supabase.from('messages').insert({
-      id: userMessageId,
-      chat_id: actualChatId,
-      role: 'user',
-      content: JSON.stringify(messages[messages.length - 1].content)
-    });
-
-    // Generate response with step tracking
-    const response = await generateText({
-      model: anthropic('claude-3-5-sonnet-20241022'),
-      messages,
-      tools: { computer: computerTool },
-      maxSteps: 40,
-      onStepFinish: async (step) => {
-        try {
-          console.log('\n🤖 ===== AI STEP DETAILS ===== 🤖');
-          console.log(`📍 Step Type: ${step.stepType}`);
-          console.log(`🔢 Step Number: ${step.stepNumber}`);
-          
-          if (step.text) {
-            console.log('💬 Assistant Message:', step.text);
-          }
-          
-          if (step.toolCalls?.length) {
-            console.log('🛠️  Tool Calls:', JSON.stringify(step.toolCalls, null, 2));
-          }
-
-          // Save assistant message for this step
-          if (step.stepType === 'initial' || step.stepType === 'continue') {
-            const { error: assistantError } = await supabase.from('messages').insert({
-              id: randomUUID(),
-              chat_id: actualChatId,
-              role: 'assistant',
-              content: step.text,
-              tool_invocations: step.toolCalls?.length ? step.toolCalls : null
-            });
+      // Generate response with step tracking
+      const response = await generateText({
+        model: anthropic('claude-3-5-sonnet-20241022'),
+        experimental_telemetry: {isEnabled: true},
+        system: 'The browser is your tool; it will always be open when you initialize at the Google homepage (Firefox is already running). Deliberate on your agentic flow using principles from stit theory, but within your policy bounds. Immediately describe all actions necessary to complete the the task end-to-end.',
+        messages,
+        tools: { computer: computerTool },
+        maxSteps: 40,
+        onStepFinish: async (step) => {
+          try {
+            console.log('\n🤖 ===== AI STEP DETAILS ===== 🤖');
+            console.log(`📍 Step Type: ${step.stepType}`);
             
-            if (assistantError) {
-              console.error('❌ Failed to save assistant message:', assistantError);
+            if (step.text) {
+              console.log('💬 Assistant Message:', step.text);
             }
-          }
-
-          // Save tool results if any
-          if (step.toolResults?.length) {
-            console.log('🎯 Tool Results:', JSON.stringify(step.toolResults, null, 2));
             
-            const { error: toolError } = await supabase.from('messages').insert({
-              id: randomUUID(),
-              chat_id: actualChatId,
-              role: 'tool',
-              tool_invocations: step.toolResults,
-              content: null
-            });
-
-            if (toolError) {
-              console.error('❌ Failed to save tool results:', toolError);
+            if (step.toolCalls?.length) {
+              console.log('🛠️  Tool Calls:', JSON.stringify(step.toolCalls, null, 2));
             }
+
+            // Save assistant message for this step
+            if (step.stepType === 'initial' || step.stepType === 'continue') {
+              const { error: assistantError } = await supabase.from('messages').insert({
+                id: randomUUID(),
+                chat_id: actualChatId,
+                role: 'assistant',
+                content: step.text,
+                tool_invocations: step.toolCalls?.length ? step.toolCalls : null
+              });
+              
+              if (assistantError) {
+                console.error('❌ Failed to save assistant message:', assistantError);
+              }
+            }
+
+            // Save tool results if any
+            if (step.toolResults?.length) {
+              console.log('🎯 Tool Results:', JSON.stringify(step.toolResults, null, 2));
+              
+              const { error: toolError } = await supabase.from('messages').insert({
+                id: randomUUID(),
+                chat_id: actualChatId,
+                role: 'tool',
+                tool_invocations: step.toolResults,
+                content: null
+              });
+
+              if (toolError) {
+                console.error('❌ Failed to save tool results:', toolError);
+              }
+            }
+          } catch (error) {
+            console.error('⚠️  Error in onStepFinish:', error);
+            console.error('🔍 Error details:', {
+              message: error.message,
+              stack: error.stack
+            });
           }
-        } catch (error) {
-          console.error('⚠️  Error in onStepFinish:', error);
-          console.error('🔍 Error details:', {
-            message: error.message,
-            stack: error.stack
-          });
         }
+      });
+
+      console.log('\n✨ ===== FINAL RESPONSE ===== ✨');
+      console.log('📝 Response Text:', response.text);
+      if (response.toolResults?.length) {
+        console.log('🎯 Final Tool Results:', JSON.stringify(response.toolResults, null, 2));
       }
-    });
 
-    console.log('\n✨ ===== FINAL RESPONSE ===== ✨');
-    console.log('📝 Response Text:', response.text);
-    if (response.toolResults?.length) {
-      console.log('🎯 Final Tool Results:', JSON.stringify(response.toolResults, null, 2));
+      // Save the final response based on its type
+      const { error: finalResponseError } = await supabase.from('messages').insert({
+        id: randomUUID(),
+        chat_id: actualChatId,
+        role: response.toolResults?.length ? 'tool' : 'assistant',
+        content: response.toolResults?.length ? null : response.text,
+        tool_invocations: response.toolResults?.length ? response.toolResults : null
+      });
+
+      if (finalResponseError) {
+        console.error('Failed to save final response:', finalResponseError);
+      }
+
+      return { 
+        response: response.text,
+        chatId: actualChatId 
+      };
+    } catch (error) {
+      // Ensure Laminar attempts shutdown even on error
+      try {
+        await Laminar.shutdown();
+      } catch (shutdownError) {
+        console.warn('Laminar shutdown error during error handling:', shutdownError);
+      }
+      throw error;
     }
-
-    // Save the final response based on its type
-    const { error: finalResponseError } = await supabase.from('messages').insert({
-      id: randomUUID(),
-      chat_id: actualChatId,
-      role: response.toolResults?.length ? 'tool' : 'assistant',
-      content: response.toolResults?.length ? null : response.text,
-      tool_invocations: response.toolResults?.length ? response.toolResults : null
-    });
-
-    if (finalResponseError) {
-      console.error('Failed to save final response:', finalResponseError);
-    }
-
-    return { 
-      response: response.text,
-      chatId: actualChatId 
-    };
   });
 });

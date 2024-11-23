@@ -18,10 +18,14 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^1.0.2",
     "@ai-sdk/openai": "^1.0.4",
+    "@grpc/grpc-js": "^1.12.2",
+    "@grpc/proto-loader": "^0.7.13",
+    "@lmnr-ai/lmnr": "^0.4.22",
     "@supabase/supabase-js": "^2.46.1",
     "ai": "^4.0.3",
     "dotenv": "^16.4.5",
     "puppeteer": "^23.9.0",
+    "sharp": "^0.33.5",
     "zod": "^3.23.8"
   }
 }
