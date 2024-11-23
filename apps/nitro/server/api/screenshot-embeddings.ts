@@ -1,7 +1,6 @@
 import { AutoProcessor, RawImage, CLIPVisionModelWithProjection } from '@xenova/transformers';
 import * as ort from 'onnxruntime-node';
 import type { H3Event } from 'h3';
-import { resolve } from 'path';
 
 // Initialize model components
 let processor: any = null;
@@ -26,13 +25,26 @@ export default defineEventHandler(async (event: H3Event) => {
   try {
     await initializeModel();
 
-    const imagePath = resolve(process.cwd(), 'public/full-display.png');
-    const image = await RawImage.read(imagePath);
+    const { imageBase64 } = await readBody(event);
+    if (!imageBase64) {
+      throw createError({
+        statusCode: 400,
+        message: 'Image data is required'
+      });
+    }
+
+    // Simplified image conversion logic
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const imageBuffer = Buffer.from(base64Data, 'base64');
+    const image = await RawImage.fromBlob(new Blob([imageBuffer]));
     
     // Process image and get embeddings
     const imageInputs = await processor(image);
     const { image_embeds } = await visionModel(imageInputs);
     const embeddings = image_embeds.tolist()[0];
+    
+    // Log embedding size
+    console.log('Vector embedding size:', embeddings.length);
     
     // Normalize the embeddings
     const normalizedEmbedding = normalize(embeddings);
@@ -55,5 +67,3 @@ function normalize(embedding: number[]) {
   const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
   return embedding.map(val => val / magnitude);
 }
-
-// loadImage function can be removed since we're using direct file path

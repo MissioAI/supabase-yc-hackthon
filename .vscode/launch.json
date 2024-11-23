@@ -10,7 +10,8 @@
             ],
             "runtimeExecutable": "pnpm",
             "runtimeArgs": ["dev"],
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/apps/nitro"
         }
     ]
 }

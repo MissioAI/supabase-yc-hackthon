@@ -6,6 +6,21 @@ import { randomUUID } from 'crypto';
 // Store last known mouse position
 let lastMousePosition = { x: 0, y: 0 };
 
+async function getScreenshotEmbeddings(base64Image: string): Promise<number[] | null> {
+  try {
+    const response = await $fetch<{ embeddings: number[] }>('/api/screenshot-embeddings', {
+      method: 'POST',
+      body: {
+        imageBase64: base64Image
+      }
+    });
+    return response.embeddings;
+  } catch (error) {
+    console.error('Failed to get screenshot embeddings:', error);
+    return null;
+  }
+}
+
 export default defineLazyEventHandler(async () => {
   const config = useRuntimeConfig();
   if (!config.anthropicApiKey) throw new Error('Missing Anthropic API key');
@@ -34,10 +49,17 @@ export default defineLazyEventHandler(async () => {
           });
           
           if ('type' in response && response.type === 'image') {
-            return {
-              type: 'image',
-              data: response.data
+            // Get embeddings for the screenshot
+            const embeddings = await getScreenshotEmbeddings(response.data);
+            
+            // Store the embeddings in a way that can be accessed later
+            const result = {
+              type: 'image' as const,
+              data: response.data,
+              metadata: { embeddings }
             };
+            
+            return result;
           }
           throw new Error('Failed to get screenshot');
         }
@@ -234,16 +256,22 @@ export default defineLazyEventHandler(async () => {
           if (step.toolResults?.length) {
             console.log('🎯 Tool Results:', JSON.stringify(step.toolResults, null, 2));
             
+            // Extract embeddings from the tool result metadata
+            const screenshotResult = step.toolResults[0]?.result;
+            const embeddings = screenshotResult?.metadata?.embeddings;
+            
             const { error: toolError } = await supabase.from('messages').insert({
               id: randomUUID(),
               chat_id: actualChatId,
               role: 'tool',
               tool_invocations: step.toolResults,
-              content: null
+              content: null,
+              screenshot_vector: embeddings // This should now be a proper number array or null
             });
 
             if (toolError) {
               console.error('❌ Failed to save tool results:', toolError);
+              console.error('Embeddings value:', embeddings); // Debug log
             }
           }
         } catch (error) {
