@@ -7,5 +7,6 @@ export default defineNitroConfig({
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseKey: process.env.SUPABASE_KEY,
+    laminarApiKey: process.env.LAMINAR_API_KEY,
   }
 });

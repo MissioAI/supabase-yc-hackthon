@@ -2,6 +2,7 @@ import { generateText } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
+import { Laminar } from '@lmnr-ai/lmnr';
 
 // Store last known mouse position
 let lastMousePosition = { x: 0, y: 0 };
@@ -11,6 +12,11 @@ export default defineLazyEventHandler(async () => {
   if (!config.anthropicApiKey) throw new Error('Missing Anthropic API key');
   if (!config.supabaseUrl) throw new Error('Missing Supabase URL');
   if (!config.supabaseKey) throw new Error('Missing Supabase key');
+
+  // Initialize Laminar client
+  Laminar.initialize({
+    projectApiKey: config.laminarApiKey
+  });
 
   // Initialize Supabase client
   const supabase = createClient(config.supabaseUrl, config.supabaseKey);
