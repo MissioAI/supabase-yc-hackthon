@@ -45,15 +45,28 @@ export default defineLazyEventHandler(async () => {
           if (!coordinate) {
             throw new Error('Coordinates required for mouse move');
           }
-          // Store coordinates before moving
+          
+          const startPos = { ...lastMousePosition };
+          const targetPos = { x: coordinate[0], y: coordinate[1] };
+          
+          // Move in small steps
+          const steps = 20; // Adjust for speed
+          for (let i = 0; i <= steps; i++) {
+            const progress = i / steps;
+            const currentX = startPos.x + (targetPos.x - startPos.x) * progress;
+            const currentY = startPos.y + (targetPos.y - startPos.y) * progress;
+            
+            await $fetch('/api/computer-control', {
+              method: 'POST',
+              body: {
+                action: 'move',
+                coordinates: { x: currentX, y: currentY }
+              }
+            });
+            await new Promise(resolve => setTimeout(resolve, 10)); // Small delay between steps
+          }
+          
           lastMousePosition = { x: coordinate[0], y: coordinate[1] };
-          await $fetch('/api/computer-control', {
-            method: 'POST',
-            body: {
-              action: 'move',
-              coordinates: lastMousePosition
-            }
-          });
           return `moved cursor to (${coordinate[0]}, ${coordinate[1]})`;
         }
         case 'left_click': {
