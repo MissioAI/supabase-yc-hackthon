@@ -1,4 +1,5 @@
 import puppeteer, { Browser, Page } from 'puppeteer'
+import { installMouseHelper } from '../utils/mouseHelper'
 
 // Store browser and page instances
 let browser: Browser | null = null
@@ -17,13 +18,15 @@ async function initBrowser() {
       width: 1280,
       height: 800
     })
+    // Install mouse helper before navigation
+    await installMouseHelper(activePage)
     // Navigate to Google by default
     await activePage.goto('https://www.google.com', { waitUntil: 'networkidle0' })
   }
   return { browser, page: activePage }
 }
 
-// Add this key mapping at the top of the file
+// Key mapping for special keys
 const KEY_MAPPING: Record<string, string> = {
   'Return': 'Enter',
   'Up': 'ArrowUp',
@@ -80,6 +83,7 @@ export default defineEventHandler(async (event) => {
             message: 'Coordinates are required for click action'
           })
         }
+        await page.mouse.move(coordinates.x, coordinates.y)
         await page.mouse.click(coordinates.x, coordinates.y)
         return { success: true, message: 'Click performed' }
 
@@ -153,24 +157,28 @@ export default defineEventHandler(async (event) => {
             message: 'Coordinates required for drag action'
           })
         }
+        await page.mouse.move(coordinates.x, coordinates.y)
         await page.mouse.down()
         await page.mouse.move(coordinates.x, coordinates.y)
         await page.mouse.up()
         return { success: true, message: 'Drag completed' }
 
       case 'right_click':
+        await page.mouse.move(coordinates?.x || 0, coordinates?.y || 0)
         await page.mouse.click(coordinates?.x || 0, coordinates?.y || 0, {
           button: 'right'
         })
         return { success: true, message: 'Right click performed' }
 
       case 'middle_click':
+        await page.mouse.move(coordinates?.x || 0, coordinates?.y || 0)
         await page.mouse.click(coordinates?.x || 0, coordinates?.y || 0, {
           button: 'middle'
         })
         return { success: true, message: 'Middle click performed' }
 
       case 'double_click':
+        await page.mouse.move(coordinates?.x || 0, coordinates?.y || 0)
         await page.mouse.click(coordinates?.x || 0, coordinates?.y || 0, {
           clickCount: 2
         })
@@ -190,4 +198,4 @@ export default defineEventHandler(async (event) => {
       message: 'Failed to perform computer control action'
     })
   }
-}) 
+})
