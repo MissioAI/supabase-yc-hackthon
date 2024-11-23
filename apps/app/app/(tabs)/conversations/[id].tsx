@@ -24,7 +24,6 @@ import {
 } from 'expo-av/build/Audio';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { useLocalSearchParams } from 'expo-router';
 
 // Ensure Buffer is available globally
 global.Buffer = global.Buffer || Buffer;
@@ -45,7 +44,7 @@ type TaskParams = {
 // Replace 'YOUR_API_KEY_HERE' with your actual OpenAI API key, but keep it secure
 const client = new RealtimeClient({ apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY });
 
-export default function ConversationScreen() {
+export default function ChatScreen() {
     const { user } = useAuth();
     const [messages, setMessages] = useState<Message[]>([
         {
@@ -68,30 +67,28 @@ export default function ConversationScreen() {
     // Add this near your other state declarations (around line 68)
     const toolsInitialized = useRef(false);
 
-    // Add this near your other state declarations
-    const { id: conversationId } = useLocalSearchParams<{ id: string }>();
-
-    // Add this useEffect to verify conversationId
-    useEffect(() => {
-        console.log('Current conversationId:', conversationId);
-    }, [conversationId]);
-
     // Initialize client connection and tools
     useEffect(() => {
         const initializeClient = async () => {
             try {
+                // First, disconnect and cleanup any existing connection
+                if (client) {
+                    try {
+                        // Only try to remove the tool if it was previously initialized
+                        if (toolsInitialized.current) {
+                            client.removeTool('create_task');
+                        }
+                        await client.disconnect();
+                    } catch (cleanupError) {
+                        console.log('Cleanup error:', cleanupError);
+                    }
+                }
+
                 await client.connect();
                 console.log('🟢 Connected to Realtime API');
 
                 // Only add tools if they haven't been initialized yet
                 if (!toolsInitialized.current) {
-                    // Remove existing tool if it exists
-                    try {
-                        await client.removeTool('create_task');
-                    } catch (e) {
-                        // Tool might not exist yet, which is fine
-                    }
-
                     // Add task creation tool
                     client.addTool(
                         {
@@ -132,12 +129,48 @@ export default function ConversationScreen() {
                                         user_id: user.id,
                                         title: params.title.trim(),
                                         description: params.description?.trim() || '',
-                                        priority: params.priority || 'medium',
-                                        status: 'pending',
-                                        due_date: params.due_date || new Date().toISOString(),
+                                        // priority: params.priority || 'medium',
+                                        // status: 'pending',
+                                        // due_date: params.due_date || new Date().toISOString(),
                                     }]);
 
                                 if (error) throw error;
+
+                                // Call the computer-use endpoint after successful task creation
+                                try {
+                                    const response = await fetch('http://172.20.10.2:3000/api/computer-use', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                            messages: [
+                                                {
+                                                    role: 'user',
+                                                    content: params.title // Using the task title as the prompt
+                                                }
+                                            ]
+                                        })
+                                    });
+
+                                    const data = await response.json();
+
+
+                                    if (data) {
+                                        // Send the computer-use response to the assistant
+                                        client.sendUserMessageContent([{
+                                            type: 'input_text',
+                                            text: `Computer Analysis: ${data}`
+                                        }] as InputTextContentType[]);
+                                        console.log('🟢 Sent computer-use response to assistant', data);
+                                        await client.createResponse();
+                                    }
+
+                                } catch (endpointError) {
+                                    console.error('Error calling computer-use endpoint:', endpointError);
+                                    // Continue with task creation success even if endpoint fails
+                                }
+
                                 return { success: true, message: `Task "${params.title}" created successfully` };
                             } catch (error) {
                                 console.error('Error creating task:', error);
@@ -152,7 +185,7 @@ export default function ConversationScreen() {
 
                 // Update session with instructions
                 client.updateSession({
-                    instructions: `You are a helpful assistant that can create tasks in the user's task list. When a user asks to create a task, remember or schedule something, use the create_task tool to help them.`,
+                    instructions: `You are a helpful assistant who's sole purpose in life is to can create tasks in the user's task list. When a user asks to create a task, remember or schedule something, always use the create_task tool to help them.`,
                     modalities: ['text', 'audio'],
                     voice: 'ash',
                     output_audio_format: 'pcm16',
@@ -160,8 +193,8 @@ export default function ConversationScreen() {
                 });
 
                 // Handle transcription updates
-                client.on('conversation.item.created', async ({ item }: { item: any }) => {
-                    console.log('📝 Message Created:', {
+                client.on('conversation.item.created', ({ item }: { item: any }) => {
+                    console.log('��� Message Created:', {
                         role: item.role,
                         type: item.type,
                         text: item.formatted?.text,
@@ -171,67 +204,33 @@ export default function ConversationScreen() {
                     if (item.type === 'message') {
                         if (item.role === 'user' && item.formatted?.transcript) {
                             // Update the user message with the transcription
-                            const content = item.formatted.transcript;
-
-                            // Add debug logging
-                            console.log('Attempting to save user message:', {
-                                conversation_id: conversationId,
-                                role: 'user',
-                                content: content
-                            });
-
-                            try {
-                                const { data, error } = await supabase.from('conversation_messages').insert({
-                                    conversation_id: conversationId,
-                                    role: 'user',
-                                    content: content
-                                }).select();  // Add .select() to get the returned data
-
-                                if (error) {
-                                    console.error('Error details:', {
-                                        error,
-                                        message: error.message,
-                                        details: error.details,
-                                        hint: error.hint,
-                                        code: error.code
-                                    });
-                                } else {
-                                    console.log('✅ User message saved:', data);
+                            setMessages((prev) => {
+                                const newMessages = [...prev];
+                                const userMessageIndex = newMessages.findIndex(
+                                    (msg) =>
+                                        msg.role === 'user' && msg.content === '🎤 Transcribing audio...'
+                                );
+                                if (userMessageIndex !== -1) {
+                                    newMessages[userMessageIndex].content = item.formatted.transcript;
                                 }
-                            } catch (error) {
-                                console.error('Exception saving user message:', error);
-                            }
+                                return newMessages;
+                            });
                         } else if (item.role === 'assistant') {
-                            const content = item.formatted?.text || item.formatted?.transcript || '';
-
-                            // Add debug logging
-                            console.log('Attempting to save assistant message:', {
-                                conversation_id: conversationId,
-                                role: 'assistant',
-                                content: content
-                            });
-
-                            try {
-                                const { data, error } = await supabase.from('conversation_messages').insert({
-                                    conversation_id: conversationId,
-                                    role: 'assistant',
-                                    content: content
-                                }).select();  // Add .select() to get the returned data
-
-                                if (error) {
-                                    console.error('Error details:', {
-                                        error,
-                                        message: error.message,
-                                        details: error.details,
-                                        hint: error.hint,
-                                        code: error.code
-                                    });
+                            setMessages((prev) => {
+                                const newMessages = [...prev];
+                                const lastMessage = newMessages[newMessages.length - 1];
+                                if (lastMessage && lastMessage.role === 'assistant') {
+                                    lastMessage.content =
+                                        item.formatted?.text || item.formatted?.transcript || '';
                                 } else {
-                                    console.log('✅ Assistant message saved:', data);
+                                    // Add a new assistant message
+                                    newMessages.push({
+                                        role: 'assistant',
+                                        content: item.formatted?.text || item.formatted?.transcript || '',
+                                    });
                                 }
-                            } catch (error) {
-                                console.error('Exception saving assistant message:', error);
-                            }
+                                return newMessages;
+                            });
                         }
                     }
                 });
@@ -240,7 +239,7 @@ export default function ConversationScreen() {
                     if (delta?.audio) {
                         // Decode base64-encoded audio chunk into binary data
                         const audioChunkData = Buffer.from(delta.audio, 'base64');
-                        console.log('Received audio chunk of length:', audioChunkData.length);
+                        // console.log('Received audio chunk of length:', audioChunkData.length);
                         setAssistantAudioChunks((prevChunks) => [...prevChunks, audioChunkData]);
                     }
 
@@ -267,24 +266,31 @@ export default function ConversationScreen() {
 
                 client.on('error', (error: any) => {
                     console.error('❌ Realtime API error:', error);
-                    setError('An error occurred with the conversation service.');
+                    setError('An error occurred with the chat service.');
                 });
 
                 setError(null);
             } catch (error) {
                 console.error('Failed to connect to Realtime API:', error);
-                setError('Failed to connect to conversation service. Please try again later.');
+                setError('Failed to connect to chat service. Please try again later.');
             }
         };
 
         initializeClient();
 
         return () => {
-            client.disconnect();
-            if (assistantSoundRef.current) {
-                assistantSoundRef.current.unloadAsync();
+            try {
+                if (client && toolsInitialized.current) {
+                    client.removeTool('create_task');
+                    client.disconnect();
+                }
+                if (assistantSoundRef.current) {
+                    assistantSoundRef.current.unloadAsync();
+                }
+                toolsInitialized.current = false;
+            } catch (error) {
+                console.error('Cleanup error:', error);
             }
-            toolsInitialized.current = false;
         };
     }, [user?.id]);
 
@@ -322,7 +328,7 @@ export default function ConversationScreen() {
                 recording.stopAndUnloadAsync();
             }
         };
-    }, [recording]);
+    }, []);
 
     const sendMessage = async (audioBuffer?: ArrayBuffer) => {
         if ((!inputText.trim() && !audioBuffer) || isLoading) return;
@@ -369,45 +375,20 @@ export default function ConversationScreen() {
             } else {
                 // Handle text messages
                 const userMessage = { role: 'user', content: inputText.trim() };
+                const content = [
+                    {
+                        type: 'input_text',
+                        text: userMessage.content,
+                    },
+                ];
 
-                // Save user message to database first
-                try {
-                    console.log('   Attempting to save user message:', {
-                        conversation_id: conversationId,
-                        role: 'user',
-                        content: userMessage.content
-                    });
-                    const { data, error } = await supabase.from('conversation_messages').insert({
-                        conversation_id: conversationId,
-                        role: 'user',
-                        content: userMessage.content
-                    });
-
-                    if (error) {
-                        console.error('Detailed error saving message:', {
-                            error,
-                            errorMessage: error.message,
-                            details: error.details,
-                            hint: error.hint
-                        });
-                    }
-                } catch (error) {
-                    console.error('Exception saving message:', error);
-                }
-
-                // Update UI
                 setMessages((prev) => [...prev, userMessage as Message]);
                 setInputText('');
 
                 // Add empty assistant message
                 setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
-
-                // Send the text message to OpenAI
-                client.sendUserMessageContent([{
-                    type: 'input_text',
-                    text: userMessage.content,
-                }] as InputTextContentType[]);
-
+                // Send the text message
+                client.sendUserMessageContent(content as InputTextContentType[]);
                 await client.createResponse();
             }
         } catch (error) {
@@ -659,7 +640,7 @@ export default function ConversationScreen() {
 
             if (error) throw error;
 
-            // Add confirmation message to conversation
+            // Add confirmation message to chat
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: `✅ Task created: "${title}"`
@@ -670,60 +651,6 @@ export default function ConversationScreen() {
             setError('Failed to create task. Please try again.');
         }
     };
-
-    // Add this near your other useEffect hooks
-    useEffect(() => {
-        const loadPreviousMessages = async () => {
-            if (!conversationId) return;
-
-            try {
-                const { data, error } = await supabase
-                    .from('conversation_messages')
-                    .select('*')
-                    .eq('conversation_id', conversationId)
-                    .order('created_at', { ascending: true });
-
-                if (error) throw error;
-
-                if (data) {
-                    setMessages(data.map(msg => ({
-                        role: msg.role as 'user' | 'assistant',
-                        content: msg.content
-                    })));
-                }
-            } catch (error) {
-                console.error('Error loading previous messages:', error);
-                setError('Failed to load previous messages');
-            }
-        };
-
-        loadPreviousMessages();
-    }, [conversationId]);
-
-    // Add this near your other useEffect hooks
-    useEffect(() => {
-        const verifyConversation = async () => {
-            if (!conversationId) return;
-
-            try {
-                const { data, error } = await supabase
-                    .from('conversations')
-                    .select('*')
-                    .eq('id', conversationId)
-                    .single();
-
-                if (error) {
-                    console.error('Error verifying conversation:', error);
-                } else {
-                    console.log('Conversation verified:', data);
-                }
-            } catch (error) {
-                console.error('Exception verifying conversation:', error);
-            }
-        };
-
-        verifyConversation();
-    }, [conversationId]);
 
     return (
         <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'top']}>
