@@ -305,6 +305,41 @@ export default defineEventHandler(async (event) => {
         })
         return { success: true, message: 'Double click performed' }
 
+      case 'success':
+        await page.evaluate((message) => {
+          const overlay = document.getElementById('step-overlay')
+          if (!overlay) return
+          
+          // Create confetti
+          const confettiContainer = document.createElement('div')
+          confettiContainer.className = 'confetti'
+          
+          // Add multiple confetti pieces
+          for (let i = 0; i < 50; i++) {
+            const piece = document.createElement('div')
+            piece.className = 'confetti-piece'
+            piece.style.left = `${Math.random() * 100}%`
+            piece.style.animationDelay = `${Math.random() * 2}s`
+            confettiContainer.appendChild(piece)
+          }
+          
+          overlay.innerHTML = `
+            <div class="step-type">Success!</div>
+            <div class="message">${message || '🎉 Operation completed successfully!'}</div>
+          `
+          overlay.appendChild(confettiContainer)
+          overlay.classList.add('active', 'success-message')
+          
+          // Remove success styling after animation
+          setTimeout(() => {
+            overlay.classList.remove('success-message')
+            setTimeout(() => {
+              overlay.classList.remove('active')
+            }, 3000)
+          }, 1000)
+        }, text) // Pass the text parameter as the message
+        return { success: true, message: 'Success overlay displayed' }
+
       default:
         throw createError({
           statusCode: 400,

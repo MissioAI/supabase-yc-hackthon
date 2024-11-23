@@ -261,6 +261,15 @@ export default defineLazyEventHandler(async () => {
         }
       });
 
+      // Add success overlay at the end
+      await $fetch('/api/computer-control', {
+        method: 'POST',
+        body: {
+          action: 'success',
+          text: '✨ Task completed successfully!',
+          browserId: actualChatId
+        }
+      });
 
       return {
         response: response.text,
