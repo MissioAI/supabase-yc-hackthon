@@ -1,7 +1,7 @@
 import { generateText } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { promises as fs } from 'fs';
-import { resolve } from 'path';
+import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
 
 // Store last known mouse position
 let lastMousePosition = { x: 0, y: 0 };
@@ -9,6 +9,11 @@ let lastMousePosition = { x: 0, y: 0 };
 export default defineLazyEventHandler(async () => {
   const config = useRuntimeConfig();
   if (!config.anthropicApiKey) throw new Error('Missing Anthropic API key');
+  if (!config.supabaseUrl) throw new Error('Missing Supabase URL');
+  if (!config.supabaseKey) throw new Error('Missing Supabase key');
+
+  // Initialize Supabase client
+  const supabase = createClient(config.supabaseUrl, config.supabaseKey);
 
   const anthropic = createAnthropic({
     apiKey: config.anthropicApiKey,
@@ -146,13 +151,96 @@ export default defineLazyEventHandler(async () => {
   });
 
   return defineEventHandler(async (event) => {
-    const { messages } = await readBody(event);
-    const { text } = await generateText({
+    const { messages, chatId } = await readBody(event);
+    
+    // Create chat if chatId is not provided
+    let actualChatId = chatId;
+    if (!actualChatId) {
+      const { data: chat, error: chatError } = await supabase
+        .from('chats')
+        .insert({
+          id: randomUUID(),
+          name: 'Computer Control Session'
+        })
+        .select()
+        .single();
+
+      if (chatError) throw createError({ 
+        statusCode: 500, 
+        message: 'Failed to create chat' 
+      });
+
+      actualChatId = chat.id;
+    }
+
+    // Save user message
+    const userMessageId = randomUUID();
+    await supabase.from('messages').insert({
+      id: userMessageId,
+      chat_id: actualChatId,
+      role: 'user',
+      content: JSON.stringify(messages[messages.length - 1].content)
+    });
+
+    // Generate response with step tracking
+    const response = await generateText({
       model: anthropic('claude-3-5-sonnet-20241022'),
       messages,
       tools: { computer: computerTool },
       maxSteps: 10,
+      onStepFinish: async (step) => {
+        try {
+          // Save assistant message for this step
+          if (step.stepType === 'initial' || step.stepType === 'continue') {
+            const { error: assistantError } = await supabase.from('messages').insert({
+              id: randomUUID(),
+              chat_id: actualChatId,
+              role: 'assistant',
+              content: step.text,
+              tool_invocations: step.toolCalls?.length ? step.toolCalls : null
+            });
+            
+            if (assistantError) {
+              console.error('Failed to save assistant message:', assistantError);
+            }
+          }
+
+          // Save tool results if any
+          if (step.toolResults?.length) {
+            const { error: toolError } = await supabase.from('messages').insert({
+              id: randomUUID(),
+              chat_id: actualChatId,
+              role: 'tool',
+              tool_invocations: step.toolResults,
+              content: null
+            });
+
+            if (toolError) {
+              console.error('Failed to save tool results:', toolError);
+            }
+          }
+        } catch (error) {
+          console.error('Error in onStepFinish:', error);
+        }
+      }
     });
-    return { response: text };
+
+    // Save the final response based on its type
+    const { error: finalResponseError } = await supabase.from('messages').insert({
+      id: randomUUID(),
+      chat_id: actualChatId,
+      role: response.toolResults?.length ? 'tool' : 'assistant',
+      content: response.toolResults?.length ? null : response.text,
+      tool_invocations: response.toolResults?.length ? response.toolResults : null
+    });
+
+    if (finalResponseError) {
+      console.error('Failed to save final response:', finalResponseError);
+    }
+
+    return { 
+      response: response.text,
+      chatId: actualChatId 
+    };
   });
 });

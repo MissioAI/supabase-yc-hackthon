@@ -2,7 +2,7 @@ import puppeteer, { Browser, Page } from 'puppeteer'
 
 // Store browser and page instances
 let browser: Browser | null = null
-let page: Page | null = null
+let activePage: Page | null = null
 
 // Initialize browser and page if not already done
 async function initBrowser() {
@@ -11,16 +11,16 @@ async function initBrowser() {
       headless: false
     })
   }
-  if (!page) {
-    page = await browser.newPage()
-    await page.setViewport({
+  if (!activePage) {
+    activePage = await browser.newPage()
+    await activePage.setViewport({
       width: 1280,
       height: 800
     })
     // Navigate to Google by default
-    await page.goto('https://www.google.com', { waitUntil: 'networkidle0' })
+    await activePage.goto('https://www.google.com', { waitUntil: 'networkidle0' })
   }
-  return { browser, page }
+  return { browser, page: activePage }
 }
 
 // Add this key mapping at the top of the file
@@ -108,7 +108,7 @@ export default defineEventHandler(async (event) => {
         if (browser) {
           await browser.close()
           browser = null
-          page = null
+          activePage = null
         }
         return { success: true, message: 'Browser closed' }
 
