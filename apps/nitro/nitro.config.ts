@@ -8,6 +8,7 @@ export default defineNitroConfig({
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
     laminarApiKey: process.env.LAMINAR_API_KEY,
+    displayScaleFactor: process.env.DISPLAY_SCALE_FACTOR,
   },
   // Remove from moduleSideEffects and handle only in externals
   externals: {

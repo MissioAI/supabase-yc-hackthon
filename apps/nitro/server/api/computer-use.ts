@@ -22,7 +22,6 @@ export default defineLazyEventHandler(async () => {
   // Initialize clients
   const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
   const anthropic = createAnthropic({ apiKey: config.anthropicApiKey });
-  const computerTool = createComputerTool(anthropic, lastMousePosition);
 
   return defineEventHandler(async (event) => {
     try {
@@ -33,7 +32,7 @@ export default defineLazyEventHandler(async () => {
         messages,
         supabase,
         model: anthropic('claude-3-5-sonnet-20241022'),
-        tools: { computer: computerTool },
+        tools: { computer: createComputerTool(anthropic, lastMousePosition) },
         lastMousePosition,
         systemPrompt: 'The browser is your tool; it will always be open when you initialize at the Google homepage (Firefox is already running). Deliberate on your agentic flow using principles from stit theory, but within your policy bounds. Immediately describe all actions necessary to complete the the task end-to-end.'
       };
@@ -48,12 +47,7 @@ export default defineLazyEventHandler(async () => {
       return result;
 
     } catch (error) {
-      // Ensure Laminar attempts shutdown even on error
-      try {
-        await Laminar.shutdown();
-      } catch (shutdownError) {
-        console.warn('Laminar shutdown error during error handling:', shutdownError);
-      }
+      await Laminar.shutdown();
       throw error;
     }
   });

@@ -1,17 +1,24 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
+import type { PipelineContext } from './types';
+import config from 'nitropack/runtime/internal/config';
 
-export function createComputerTool(anthropic: ReturnType<typeof createAnthropic>, lastMousePosition: { x: number, y: number }) {
-  const scaleFactor = 0.5;
+export function createComputerTool(
+  anthropic: ReturnType<typeof createAnthropic>, 
+  lastMousePosition: { x: number, y: number }
+) {
+const scaleFactor = Number(config.displayScaleFactor) ?? 1 // Default to 1 if not set
 
   return anthropic.tools.computer_20241022({
     displayWidthPx: Math.round(1280 / scaleFactor),
     displayHeightPx: Math.round(800 / scaleFactor),
-    execute: async ({ action, coordinate, text }) => {
+    execute: async ({ action, coordinate, text }, context: PipelineContext) => {
+      const browserId = context.chatId;
+      
       switch (action) {
         case 'screenshot': {
           const response = await $fetch('/api/computer-control', {
             method: 'POST',
-            body: { action: 'screenshot' }
+            body: { action: 'screenshot', browserId }
           });
 
           if ('type' in response && response.type === 'image') {
