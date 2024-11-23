@@ -2,29 +2,46 @@ import puppeteer, { Browser, Page } from 'puppeteer'
 import { installMouseHelper } from '../utils/mouseHelper'
 import sharp from 'sharp'
 
-// Store browser and page instances
-let browser: Browser | null = null
-let activePage: Page | null = null
+// Store browser and page instances with their IDs
+const browsers: Record<string, { browser: Browser; page: Page }> = {}
 
 // Initialize browser and page if not already done
-async function initBrowser() {
-  if (!browser) {
-    browser = await puppeteer.launch({
-      headless: false
-    })
+async function initBrowser(browserId: string = 'default') {
+  // Return existing browser if it exists
+  if (browsers[browserId]) {
+    return browsers[browserId]
   }
-  if (!activePage) {
-    activePage = await browser.newPage()
-    await activePage.setViewport({
-      width: 1280,
-      height: 800
-    })
-    // Install mouse helper before navigation
-    await installMouseHelper(activePage)
-    // Navigate to Google by default
-    await activePage.goto('https://www.google.com', { waitUntil: 'networkidle0' })
+
+  // Create new browser instance
+  const browser = await puppeteer.launch({
+    headless: false
+  })
+  const page = await browser.newPage()
+  
+  await page.setViewport({
+    width: 1280,
+    height: 800
+  })
+  
+  // Install mouse helper before navigation
+  await installMouseHelper(page)
+  
+  // Navigate to Google by default
+  await page.goto('https://www.google.com', { waitUntil: 'networkidle0' })
+
+  // Store the new browser instance
+  browsers[browserId] = { browser, page }
+  
+  return browsers[browserId]
+}
+
+// Add cleanup function
+async function closeBrowser(browserId: string) {
+  if (browsers[browserId]) {
+    const { browser } = browsers[browserId]
+    await browser.close()
+    delete browsers[browserId]
   }
-  return { browser, page: activePage }
 }
 
 // Key mapping for special keys
@@ -49,7 +66,7 @@ const KEY_MAPPING: Record<string, string> = {
 export default defineEventHandler(async (event) => {
   // Get action parameters from request body
   const body = await readBody(event)
-  const { action, url, coordinates: rawCoordinates, text } = body
+  const { action, url, coordinates: rawCoordinates, text, browserId = 'default' } = body
   
   const config = useRuntimeConfig()
   const scaleFactor = Number(config.displayScaleFactor) ?? 1 // Default to 1 if not set
@@ -68,7 +85,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const { page } = await initBrowser()
+    const { page } = await initBrowser(browserId)
 
     switch (action) {
       case 'screenshot':
@@ -143,12 +160,7 @@ export default defineEventHandler(async (event) => {
         return { success: true, message: 'Text typed' }
 
       case 'close':
-        // Close the browser if needed
-        if (browser) {
-          await browser.close()
-          browser = null
-          activePage = null
-        }
+        await closeBrowser(browserId)
         return { success: true, message: 'Browser closed' }
 
       case 'key':
