@@ -200,7 +200,7 @@ export default defineLazyEventHandler(async () => {
       model: anthropic('claude-3-5-sonnet-20241022'),
       messages,
       tools: { computer: computerTool },
-      maxSteps: 10,
+      maxSteps: 40,
       onStepFinish: async (step) => {
         try {
           console.log('\n🤖 ===== AI STEP DETAILS ===== 🤖');
