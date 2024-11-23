@@ -1,5 +1,6 @@
 import puppeteer, { Browser, Page } from 'puppeteer'
 import { installMouseHelper } from '../utils/mouseHelper'
+import { installStepOverlay } from '../utils/stepOverlay'
 import sharp from 'sharp'
 
 // Store browser and page instances with their IDs
@@ -23,8 +24,9 @@ async function initBrowser(browserId: string = 'default') {
     height: 800
   })
   
-  // Install mouse helper before navigation
+  // Install mouse helper and step overlay before navigation
   await installMouseHelper(page)
+  await installStepOverlay(page)
   
   // Navigate to Google by default
   await page.goto('https://www.google.com', { waitUntil: 'networkidle0' })
