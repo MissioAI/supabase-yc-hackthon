@@ -80,11 +80,11 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="account"
+        name="conversations"
         options={{
-          title: 'Account',
+          title: 'Conversations',
           tabBarLabel: '',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="person.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={24} name="message.fill" color={color} />,
         }}
       />
     </Tabs>
