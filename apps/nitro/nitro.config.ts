@@ -13,14 +13,22 @@ export default defineNitroConfig({
   externals: {
     inline: [
       '@lmnr-ai/lmnr',
-      // Group OpenTelemetry dependencies together
+      // Explicitly include all required OpenTelemetry packages with their dependencies
       '@opentelemetry/api',
-      '@opentelemetry/exporter-trace-otlp-grpc',
+      '@opentelemetry/core',
+      '@opentelemetry/semantic-conventions',
+      '@opentelemetry/resources',
       '@opentelemetry/sdk-trace-base',
       '@opentelemetry/sdk-trace-node',
-      // Group GRPC dependencies together
+      '@opentelemetry/exporter-trace-otlp-grpc',
+      '@opentelemetry/otlp-grpc-exporter-base',
+      '@opentelemetry/otlp-exporter-base',
+      // Include all GRPC-related packages
       '@grpc/grpc-js',
-      '@grpc/proto-loader'
+      '@grpc/proto-loader',
+      'long',
+      'lodash.merge',
+      'lodash.camelcase'
     ]
   }
 });
