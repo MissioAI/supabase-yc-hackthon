@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
     // Take screenshot
     const screenshot = await page.screenshot({
       type: 'png',
-      fullPage: true
+      fullPage: false
     })
 
     // Set response headers

@@ -68,7 +68,7 @@ export default defineEventHandler(async (event) => {
         }
         const screenshot = await page.screenshot({ 
           type: 'png', 
-          fullPage: true,
+          fullPage: false,
           encoding: 'base64'
         })
         return {
