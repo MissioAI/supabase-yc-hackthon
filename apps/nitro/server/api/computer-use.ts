@@ -17,10 +17,10 @@ Laminar.initialize({
 export default defineLazyEventHandler(async () => {
   if (!config.anthropicApiKey) throw new Error('Missing Anthropic API key');
   if (!config.supabaseUrl) throw new Error('Missing Supabase URL');
-  if (!config.supabaseKey) throw new Error('Missing Supabase key');
+  if (!config.supabaseAnonKey) throw new Error('Missing Supabase key');
 
   // Initialize Supabase client
-  const supabase = createClient(config.supabaseUrl, config.supabaseKey);
+  const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
   const anthropic = createAnthropic({
     apiKey: config.anthropicApiKey,
@@ -41,7 +41,7 @@ export default defineLazyEventHandler(async () => {
               action: 'screenshot'
             }
           });
-          
+
           if ('type' in response && response.type === 'image') {
             return {
               type: 'image',
@@ -54,17 +54,17 @@ export default defineLazyEventHandler(async () => {
           if (!coordinate) {
             throw new Error('Coordinates required for mouse move');
           }
-          
+
           const startPos = { ...lastMousePosition };
           const targetPos = { x: coordinate[0], y: coordinate[1] };
-          
+
           // Move in small steps
           const steps = 20; // Adjust for speed
           for (let i = 0; i <= steps; i++) {
             const progress = i / steps;
             const currentX = startPos.x + (targetPos.x - startPos.x) * progress;
             const currentY = startPos.y + (targetPos.y - startPos.y) * progress;
-            
+
             await $fetch('/api/computer-control', {
               method: 'POST',
               body: {
@@ -74,7 +74,7 @@ export default defineLazyEventHandler(async () => {
             });
             await new Promise(resolve => setTimeout(resolve, 10)); // Small delay between steps
           }
-          
+
           lastMousePosition = { x: coordinate[0], y: coordinate[1] };
           return `moved cursor to (${coordinate[0]}, ${coordinate[1]})`;
         }
@@ -175,7 +175,7 @@ export default defineLazyEventHandler(async () => {
   return defineEventHandler(async (event) => {
     try {
       const { messages, chatId } = await readBody(event);
-      
+
       // Create chat if chatId is not provided
       let actualChatId = chatId;
       if (!actualChatId) {
@@ -187,10 +187,11 @@ export default defineLazyEventHandler(async () => {
           })
           .select()
           .single();
+          
 
-        if (chatError) throw createError({ 
-          statusCode: 500, 
-          message: 'Failed to create chat' 
+        if (chatError) throw createError({
+          statusCode: 500,
+          message: 'Failed to create chat'
         });
 
         actualChatId = chat.id;
@@ -208,7 +209,7 @@ export default defineLazyEventHandler(async () => {
       // Generate response with step tracking
       const response = await generateText({
         model: anthropic('claude-3-5-sonnet-20241022'),
-        experimental_telemetry: {isEnabled: true},
+        experimental_telemetry: { isEnabled: true },
         system: 'The browser is your tool; it will always be open when you initialize at the Google homepage (Firefox is already running). Deliberate on your agentic flow using principles from stit theory, but within your policy bounds. Immediately describe all actions necessary to complete the the task end-to-end.',
         messages,
         tools: { computer: computerTool },
@@ -217,11 +218,11 @@ export default defineLazyEventHandler(async () => {
           try {
             console.log('\n🤖 ===== AI STEP DETAILS ===== 🤖');
             console.log(`📍 Step Type: ${step.stepType}`);
-            
+
             if (step.text) {
               console.log('💬 Assistant Message:', step.text);
             }
-            
+
             if (step.toolCalls?.length) {
               console.log('🛠️  Tool Calls:', JSON.stringify(step.toolCalls, null, 2));
             }
@@ -235,7 +236,7 @@ export default defineLazyEventHandler(async () => {
                 content: step.text,
                 tool_invocations: step.toolCalls?.length ? step.toolCalls : null
               });
-              
+
               if (assistantError) {
                 console.error('❌ Failed to save assistant message:', assistantError);
               }
@@ -244,7 +245,7 @@ export default defineLazyEventHandler(async () => {
             // Save tool results if any
             if (step.toolResults?.length) {
               console.log('🎯 Tool Results:', JSON.stringify(step.toolResults, null, 2));
-              
+
               const { error: toolError } = await supabase.from('messages').insert({
                 id: randomUUID(),
                 chat_id: actualChatId,
@@ -286,9 +287,9 @@ export default defineLazyEventHandler(async () => {
         console.error('Failed to save final response:', finalResponseError);
       }
 
-      return { 
+      return {
         response: response.text,
-        chatId: actualChatId 
+        chatId: actualChatId
       };
     } catch (error) {
       // Ensure Laminar attempts shutdown even on error
