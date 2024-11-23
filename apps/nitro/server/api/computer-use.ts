@@ -30,11 +30,39 @@ export default defineLazyEventHandler(async () => {
 
   return defineEventHandler(async (event) => {
     try {
-      const { messages, chatId } = await readBody(event);
+      const query = getQuery(event);
+      const { messages } = await readBody(event);
+      const chatId = query.chatId as string | undefined;
 
-      // Create chat if chatId is not provided
+      // If chatId is provided, verify it exists
       let actualChatId = chatId;
-      if (!actualChatId) {
+      if (chatId) {
+        const { data: existingChat, error: fetchError } = await supabase
+          .from('chats')
+          .select('id')
+          .eq('id', chatId)
+          .single();
+
+        if (fetchError || !existingChat) {
+          // Chat not found, create new one
+          const { data: newChat, error: createError } = await supabase
+            .from('chats')
+            .insert({
+              id: chatId,
+              name: 'Computer Control Session'
+            })
+            .select()
+            .single();
+
+          if (createError) throw createError({
+            statusCode: 500,
+            message: 'Failed to create chat'
+          });
+
+          actualChatId = newChat.id;
+        }
+      } else {
+        // No chatId provided, create new chat
         const browserId = randomUUID();
         const { data: chat, error: chatError } = await supabase
           .from('chats')
