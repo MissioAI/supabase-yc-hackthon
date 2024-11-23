@@ -42,6 +42,9 @@ export default defineEventHandler(async (event: H3Event) => {
     
     // Normalize the embeddings
     const normalizedEmbedding = normalize(embeddings);
+    
+    // Add console log for embedding dimensions
+    console.log('Embedding dimensions:', normalizedEmbedding.length);
 
     return {
       embeddings: normalizedEmbedding,
