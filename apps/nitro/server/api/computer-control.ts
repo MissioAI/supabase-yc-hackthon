@@ -51,7 +51,8 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { action, url, coordinates: rawCoordinates, text } = body
   
-  const scaleFactor = 0.5 // Adjust this value to control reduction (0.25 = 25% of original size)
+  const config = useRuntimeConfig()
+  const scaleFactor = Number(config.displayScaleFactor) ?? 1 // Default to 1 if not set
   
   // Scale up coordinates if they exist
   const coordinates = rawCoordinates ? {

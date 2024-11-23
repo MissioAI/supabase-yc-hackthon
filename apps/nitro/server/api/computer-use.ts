@@ -26,7 +26,7 @@ export default defineLazyEventHandler(async () => {
     apiKey: config.anthropicApiKey,
   });
 
-  const scaleFactor = 0.5 // Adjust this value to control reduction (0.5 = 50% of original size)
+  const scaleFactor = Number(config.displayScaleFactor) ?? 1 // Default to 1 if not set
 
   // Create computer tool
   const computerTool = anthropic.tools.computer_20241022({
