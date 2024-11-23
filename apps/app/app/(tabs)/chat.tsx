@@ -37,7 +37,7 @@ type Message = {
 
 // Add a discriminator to identify tool messages
 type ToolMessage = Message & {
-  isToolMessage: true;  // This helps TypeScript distinguish tool messages
+  isToolMessage: true; // This helps TypeScript distinguish tool messages
 };
 
 type TaskParams = {
@@ -144,8 +144,6 @@ export default function ChatScreen() {
 
                 // Call the computer-use endpoint after successful task creation
                 try {
-                  debugger;
-
                   // Updated confirmation message with tool icon
                   setMessages((prev) => [
                     ...prev,
@@ -155,26 +153,25 @@ export default function ChatScreen() {
                     },
                   ]);
 
-                  debugger
+                  const response = await fetch(
+                    `http://172.20.10.3:3000/api/computer-use?chatId=${chatId}`,
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        messages: [
+                          {
+                            role: "user",
+                            content: params.title, // Using the task title as the prompt
+                          },
+                        ],
+                      }),
+                    }
+                  );
 
-                  //    const response = await fetch(`http://172.20.10.3:3000/api/computer-use?chatId=${chatId}`, {
-                  //         method: 'POST',
-                  //         headers: {
-                  //             'Content-Type': 'application/json',
-                  //         },
-                  //         body: JSON.stringify({
-                  //             messages: [
-                  //                 {
-                  //                     role: 'user',
-                  //                     content: params.title // Using the task title as the prompt
-                  //                 }
-                  //             ]
-                  //         })
-                  //     });
-
-                  //     const data = await response.json();
-
-                  const data = null;
+                  const data = await response.json();
 
                   if (data) {
                     // Send the computer-use response to the assistant
@@ -711,34 +708,37 @@ export default function ChatScreen() {
               </ThemedText>
             </ThemedView>
           ) : (
-            messages.reduce((acc: (Message | ToolMessage)[], message, index) => {
-              // Add the current message
-              acc.push(message);
-              
-              // If this is a user message, check for any tool messages that should follow it
-              if (message.role === "user") {
-                const toolMessagesForUser = toolMessages.filter((_, toolIndex) => 
-                  // Match tool messages to the previous user message
-                  Math.floor(toolIndex / 2) === Math.floor(index / 2)
-                );
-                acc.push(...toolMessagesForUser);
-              }
-              
-              return acc;
-            }, []).map((message, index) => (
-              <ThemedView
-                key={index}
-                style={[
-                  styles.messageBubble,
-                  message.role === "user"
-                    ? styles.userMessage
-                    : styles.assistantMessage,
-                  'isToolMessage' in message && styles.toolMessage,
-                ]}
-              >
-                <ThemedText>{message.content}</ThemedText>
-              </ThemedView>
-            ))
+            messages
+              .reduce((acc: (Message | ToolMessage)[], message, index) => {
+                // Add the current message
+                acc.push(message);
+
+                // If this is a user message, check for any tool messages that should follow it
+                if (message.role === "user") {
+                  const toolMessagesForUser = toolMessages.filter(
+                    (_, toolIndex) =>
+                      // Match tool messages to the previous user message
+                      Math.floor(toolIndex / 2) === Math.floor(index / 2)
+                  );
+                  acc.push(...toolMessagesForUser);
+                }
+
+                return acc;
+              }, [])
+              .map((message, index) => (
+                <ThemedView
+                  key={index}
+                  style={[
+                    styles.messageBubble,
+                    message.role === "user"
+                      ? styles.userMessage
+                      : styles.assistantMessage,
+                    "isToolMessage" in message && styles.toolMessage,
+                  ]}
+                >
+                  <ThemedText>{message.content}</ThemedText>
+                </ThemedView>
+              ))
           )}
           {isLoading && (
             <ThemedText style={styles.loadingText}>AI is typing...</ThemedText>
@@ -886,8 +886,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   toolMessage: {
-    backgroundColor: '#e3f2fd',  // Light blue background
+    backgroundColor: "#e3f2fd", // Light blue background
     borderWidth: 1,
-    borderColor: '#90caf9',
+    borderColor: "#90caf9",
   },
 });
