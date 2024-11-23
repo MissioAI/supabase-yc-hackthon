@@ -134,13 +134,12 @@ export default function SubChatScreen() {
             </ThemedView>
 
             {/* Messages List */}
-            <ScrollView 
+            <ScrollView
                 style={styles.messagesContainer}
                 contentContainerStyle={styles.messagesList}
-                inverted={false}
             >
                 {messages.map((message) => (
-                    <ThemedView 
+                    <ThemedView
                         key={message.id}
                         style={[
                             styles.messageContainer,
@@ -167,7 +166,7 @@ export default function SubChatScreen() {
                     placeholderTextColor="#666"
                     multiline
                 />
-                <Pressable 
+                <Pressable
                     onPress={handleSend}
                     style={[
                         styles.sendButton,
@@ -175,10 +174,10 @@ export default function SubChatScreen() {
                     ]}
                     disabled={!inputMessage.trim()}
                 >
-                    <IconSymbol 
-                        name="arrow.up.circle.fill" 
-                        size={32} 
-                        color={inputMessage.trim() ? "#007AFF" : "#666"} 
+                    <IconSymbol
+                        name="arrow.up.circle.fill"
+                        size={32}
+                        color={inputMessage.trim() ? "#007AFF" : "#666"}
                     />
                 </Pressable>
             </KeyboardAvoidingView>
