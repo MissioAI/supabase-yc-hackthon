@@ -40,9 +40,9 @@ export default defineLazyEventHandler(async () => {
             body: {
               action: 'screenshot'
             }
-          });
+          }) as { type: string; data: string };
           
-          if ('type' in response && response.type === 'image') {
+          if (response.type === 'image') {
             return {
               type: 'image',
               data: response.data
